@@ -1,3 +1,4 @@
+---
 # Service Account for log collection
 apiVersion: v1
 kind: ServiceAccount
@@ -77,4 +78,3 @@ spec:
     - infrastructure
     outputRefs:
     - default-lokistack
-

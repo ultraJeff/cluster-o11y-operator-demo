@@ -1,161 +1,166 @@
-# Cluster Observability Operator Demo
+# OpenShift Cluster Observability Operator Demo
 
-This repository demonstrates the **Red Hat OpenShift Cluster Observability Operator (COO)** with all five UI plugins, MonitoringStack for Prometheus-based monitoring, and full logging integration with LokiStack.
+This repository contains resources for deploying the Red Hat OpenShift Cluster Observability Operator (COO) with full logging, tracing, and monitoring capabilities.
 
 ## Overview
 
+The Cluster Observability Operator provides a unified observability experience in OpenShift with:
+
+- **Logging** - Log collection and viewing via LokiStack
+- **Distributed Tracing** - Trace visualization via TempoStack
+- **Monitoring** - Enhanced monitoring UI
+- **Dashboards** - Custom dashboard support
+- **Troubleshooting Panel** - Integrated troubleshooting tools
+
+## Repository Structure
+
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                   OpenShift Console Enhancements                 │
-├─────────────────────────────────────────────────────────────────┤
-│  Observe → Traces      │  Distributed Tracing UIPlugin          │
-│  Observe → Logs        │  Logging UIPlugin + LokiStack          │
-│  Observe → Dashboards  │  Dashboards UIPlugin (Perses)          │
-│  Observe → Alerting    │  Monitoring UIPlugin (ACM support)     │
-│  Resource → Lightbulb  │  Troubleshooting Panel (Korrel8r)      │
-├─────────────────────────────────────────────────────────────────┤
-│                   Backend Components                             │
-├─────────────────────────────────────────────────────────────────┤
-│  MonitoringStack       │  Prometheus + Alertmanager             │
-│  LokiStack             │  Log aggregation + query               │
-│  Collectors            │  Vector-based log collection           │
-└─────────────────────────────────────────────────────────────────┘
+.
+├── observability/           # Core observability infrastructure
+│   ├── kustomization.yaml   # Kustomize entry point
+│   ├── *-operator.yaml      # Operator subscriptions
+│   ├── minio.yaml           # Object storage for Loki/Tempo
+│   ├── lokistack.yaml       # Log storage configuration
+│   ├── observability-installer.yaml  # TempoStack + OTel Collector
+│   ├── clusterlogforwarder.yaml      # Log forwarding config
+│   ├── ui-plugin-*.yaml     # UI plugin configurations
+│   └── sample-tracing-app.yaml       # Simple trace generator
+├── demos/
+│   ├── hotrod/              # Jaeger HotROD demo (Go, 4 services)
+│   └── dotnet-tracing/      # .NET 8 demo (3 services)
+└── rbac/
+    └── traces-reader.yaml   # RBAC for trace access
+```
+
+## Quick Start
+
+### 1. Deploy Observability Stack
+
+```bash
+# Apply all observability resources
+oc apply -k observability/
+```
+
+**Note**: Resources should be applied in order. The operators need to be installed first, then the CRDs become available for LokiStack, ObservabilityInstaller, etc.
+
+### 2. Verify Installation
+
+```bash
+# Check operators
+oc get csv -A | grep -E "loki|tempo|opentelemetry|observability|logging"
+
+# Check components
+oc get lokistack -A
+oc get tempostack -A
+oc get opentelemetrycollector -A
+oc get uiplugin
+```
+
+### 3. Deploy Demo Applications
+
+#### HotROD (Jaeger demo)
+```bash
+oc apply -f demos/hotrod/hotrod.yaml
+```
+
+#### .NET Distributed Tracing Demo
+```bash
+# Apply manifests
+oc apply -f demos/dotnet-tracing/openshift-deploy.yaml
+
+# Build services
+oc start-build inventory-service --from-dir=demos/dotnet-tracing/src/InventoryService -n dotnet-tracing-demo --follow
+oc start-build order-service --from-dir=demos/dotnet-tracing/src/OrderService -n dotnet-tracing-demo --follow
+oc start-build frontend --from-dir=demos/dotnet-tracing/src/Frontend -n dotnet-tracing-demo --follow
+```
+
+### 4. Grant User Access
+
+```bash
+# Apply traces-reader role
+oc apply -f rbac/traces-reader.yaml
+
+# Bind to a user
+oc create clusterrolebinding user1-traces-reader \
+  --clusterrole=tempostack-traces-reader \
+  --user=user1
+
+# Grant namespace access
+oc create rolebinding user1-view --clusterrole=view --user=user1 -n hotrod-demo
+oc create rolebinding user1-view --clusterrole=view --user=user1 -n dotnet-tracing-demo
 ```
 
 ## Components
 
-| Component | Description |
-|-----------|-------------|
-| **MonitoringStack** | Prometheus-based monitoring for custom metrics |
-| **UIPlugin (Distributed Tracing)** | Adds Observe → Traces to console |
-| **UIPlugin (Logging)** | Adds Observe → Logs with LokiStack integration |
-| **UIPlugin (Dashboards)** | Adds custom dashboard support via Perses |
-| **UIPlugin (Monitoring)** | Enhanced alerting with ACM support |
-| **UIPlugin (Troubleshooting Panel)** | Korrel8r-powered troubleshooting sidebar |
-| **LokiStack** | Log storage and query engine |
-| **ClusterLogForwarder** | Routes logs to LokiStack |
+### Operators Installed
 
-## Prerequisites
+| Operator | Namespace | Purpose |
+|----------|-----------|---------|
+| Cluster Observability Operator | openshift-cluster-observability-operator | UI plugins, dashboards |
+| Loki Operator | openshift-operators-redhat | Log storage |
+| Tempo Operator | openshift-operators | Trace storage |
+| OpenTelemetry Operator | openshift-operators | Trace collection |
+| Cluster Logging Operator | openshift-logging | Log collection |
 
-- OpenShift 4.14+
-- Cluster admin access
+### Storage
 
-## Quick Start
+MinIO is deployed as S3-compatible object storage for both LokiStack (logs) and TempoStack (traces). For production, use AWS S3, Azure Blob, or another supported object storage.
 
-### 1. Install the Cluster Observability Operator
+### ObservabilityInstaller (Technology Preview)
 
-```bash
-oc apply -f resources/subscription.yaml
+The `ObservabilityInstaller` CRD simplifies distributed tracing setup by automatically creating:
+- TempoStack with proper OpenShift authentication
+- OpenTelemetry Collector with k8sattributes processor
+- All necessary RBAC
 
-# Wait for operator
-until oc get csv -n openshift-cluster-observability-operator | grep -q "Succeeded"; do
-  echo "Waiting for COO operator..."
-  sleep 10
-done
-```
+## Demo Applications
 
-### 2. Deploy MonitoringStack and UIPlugins
+### HotROD
+A ride-sharing simulation with 4 interconnected services demonstrating distributed tracing in Go.
 
-```bash
-oc apply -k resources/
-```
+### .NET Tracing Demo
+A 3-service .NET 8 application showing:
+- Automatic ASP.NET Core instrumentation
+- Automatic HttpClient instrumentation (context propagation)
+- Custom spans with `ActivitySource`
+- OTLP gRPC export
 
-### 3. (Optional) Deploy Logging with LokiStack
+## Accessing the UI
 
-For full Observe → Logs functionality:
+After deployment, access the observability features in the OpenShift Console:
 
-```bash
-# Install operators first
-oc apply -f resources/logging/namespace.yaml
-oc apply -f resources/logging/operators.yaml
+- **Observe → Logs** - View logs from all namespaces
+- **Observe → Traces** - View distributed traces
+- **Observe → Dashboards** - Custom dashboards
+- **Observe → Targets** - Prometheus targets (with Monitoring plugin)
 
-# Wait for operators
-until oc get csv -n openshift-operators-redhat | grep -q "loki.*Succeeded"; do sleep 10; done
-until oc get csv -n openshift-logging | grep -q "cluster-logging.*Succeeded"; do sleep 10; done
+## Troubleshooting
 
-# Deploy MinIO storage
-oc apply -f resources/logging/minio.yaml
-oc wait --for=condition=Available deployment/minio -n openshift-logging --timeout=120s
-oc exec -n openshift-logging deploy/minio -- mkdir -p /data/loki
+### Traces not appearing
 
-# Deploy LokiStack and log forwarder
-oc apply -f resources/logging/lokistack.yaml
-oc apply -f resources/logging/clusterlogforwarder.yaml
-```
+1. Check the OTel collector logs:
+   ```bash
+   oc logs -n observability deployment/tracing-collector
+   ```
 
-## UIPlugins
+2. Verify the trace generator is running:
+   ```bash
+   oc get pods -n tracing-demo
+   ```
 
-### Distributed Tracing
-- **Location**: Observe → Traces
-- **Requirements**: TempoStack or TempoMonolithic instance
-- **Features**: View traces, filter by service/operation, Gantt chart visualization
+3. Check TempoStack status:
+   ```bash
+   oc get tempostack -n observability -o yaml
+   ```
 
-### Logging
-- **Location**: Observe → Logs
-- **Requirements**: LokiStack (see `resources/logging/`)
-- **Features**: Query logs by namespace, pod, container, severity
+### User can't access traces
 
-### Dashboards
-- **Location**: Observe → Dashboards
-- **Requirements**: None
-- **Features**: Create and manage custom Perses dashboards
+Ensure the user has:
+1. The `tempostack-traces-reader` ClusterRole bound
+2. View access to the specific namespaces they want to see traces from
 
-### Monitoring
-- **Location**: Observe → Alerting (enhanced)
-- **Requirements**: MonitoringStack or ACM
-- **Features**: Enhanced alerting with multi-cluster support
+## References
 
-### Troubleshooting Panel
-- **Location**: Lightbulb icon on any resource page
-- **Requirements**: None
-- **Features**: Korrel8r-powered correlation of related resources
-
-## Directory Structure
-
-```
-resources/
-├── subscription.yaml              # COO operator subscription
-├── namespace.yaml                 # coo-service-mesh namespace
-├── monitoringstack.yaml           # Prometheus + Alertmanager
-├── podmonitor-istio-proxies.yaml  # Scrape Envoy metrics
-├── servicemonitor-istiod.yaml     # Scrape Istiod metrics
-├── uiplugin-tracing.yaml          # Distributed Tracing plugin
-├── uiplugin-logging.yaml          # Logging plugin
-├── uiplugin-dashboards.yaml       # Dashboards plugin
-├── uiplugin-monitoring.yaml       # Monitoring plugin
-├── uiplugin-troubleshooting-panel.yaml  # Troubleshooting plugin
-├── kustomization.yaml
-└── logging/                       # Full logging stack
-    ├── namespace.yaml
-    ├── operators.yaml
-    ├── minio.yaml
-    ├── lokistack.yaml
-    ├── clusterlogforwarder.yaml
-    └── README.md
-```
-
-## Verification
-
-```bash
-# Check UIPlugins
-oc get uiplugins
-
-# Check MonitoringStack
-oc get monitoringstack -n coo-service-mesh
-
-# Check LokiStack (if deployed)
-oc get lokistack -n openshift-logging
-
-# Check console plugins are registered
-oc get consoles.operator.openshift.io cluster -o jsonpath='{.spec.plugins}'
-```
-
-## Documentation
-
-- [Cluster Observability Operator Documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_cluster_observability_operator/1-latest/html-single/installing_red_hat_openshift_cluster_observability_operator/index)
-- [UI Plugins Documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_cluster_observability_operator/1-latest/html-single/ui_plugins_for_red_hat_openshift_cluster_observability_operator/index)
-
-## License
-
-Apache License 2.0
-
+- [COO Documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_cluster_observability_operator)
+- [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/net/)
+- [Jaeger HotROD](https://github.com/jaegertracing/jaeger/tree/main/examples/hotrod)

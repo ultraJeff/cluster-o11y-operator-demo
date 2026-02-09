@@ -1,0 +1,44 @@
+---
+# Namespace for centralized observability components
+# The ObservabilityInstaller creates TempoStack and OTel Collector here
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    name: observability
+---
+# Secret for ObservabilityInstaller to access MinIO storage
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-secret
+  namespace: observability
+type: Opaque
+stringData:
+  access_key_secret: minio123
+---
+# ObservabilityInstaller - simplified deployment of distributed tracing
+# This creates a TempoStack and OpenTelemetry Collector automatically
+# Technology Preview feature - automatically configures RBAC and auth
+apiVersion: observability.openshift.io/v1alpha1
+kind: ObservabilityInstaller
+metadata:
+  name: tracing
+  namespace: observability
+spec:
+  capabilities:
+    tracing:
+      enabled: true
+      operators:
+        # We're installing operators separately via OperatorHub subscriptions
+        install: false
+      storage:
+        objectStorage:
+          s3:
+            bucket: tempo
+            endpoint: http://minio.minio.svc:9000
+            accessKeyID: minio
+            accessKeySecret:
+              name: minio-secret
+              key: access_key_secret

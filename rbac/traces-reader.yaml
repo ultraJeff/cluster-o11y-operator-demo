@@ -1,0 +1,32 @@
+---
+# ClusterRole to read traces from the application tenant
+# This grants access to view traces in the COO Traces UI
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tempostack-traces-reader
+rules:
+- apiGroups:
+  - tempo.grafana.com
+  resources:
+  - application   # tenant name
+  resourceNames:
+  - traces
+  verbs:
+  - get
+  - list
+---
+# Example binding for a user
+# Uncomment and modify to grant a specific user access
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRoleBinding
+# metadata:
+#   name: user1-tempostack-traces-reader
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: ClusterRole
+#   name: tempostack-traces-reader
+# subjects:
+# - kind: User
+#   name: user1
+#   apiGroup: rbac.authorization.k8s.io

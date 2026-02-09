@@ -1,0 +1,56 @@
+---
+# Namespace for OpenShift Logging
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-logging
+  labels:
+    name: openshift-logging
+    openshift.io/cluster-monitoring: "true"
+---
+# Secret for LokiStack to access MinIO
+apiVersion: v1
+kind: Secret
+metadata:
+  name: loki-minio-credentials
+  namespace: openshift-logging
+type: Opaque
+stringData:
+  access_key_id: minio
+  access_key_secret: minio123
+  bucketnames: logging-loki
+  endpoint: http://minio.minio.svc.cluster.local:9000
+---
+# LokiStack for OpenShift Logging
+apiVersion: loki.grafana.com/v1
+kind: LokiStack
+metadata:
+  name: logging-loki
+  namespace: openshift-logging
+spec:
+  # Demo/dev size - minimal resources
+  size: 1x.demo
+  # S3-compatible storage (MinIO)
+  storage:
+    schemas:
+      - version: v13
+        effectiveDate: "2024-01-01"
+    secret:
+      name: loki-minio-credentials
+      type: s3
+  # Storage class for Loki's internal data
+  storageClassName: gp3-csi
+  # Tenant mode for OpenShift logging
+  tenants:
+    mode: openshift-logging
+  # Resource limits for demo deployment
+  limits:
+    global:
+      ingestion:
+        ingestionRate: 4
+        ingestionBurstSize: 6
+      queries:
+        maxEntriesLimitPerQuery: 5000
+      # Retention settings - logs older than this are automatically deleted
+      retention:
+        days: 1

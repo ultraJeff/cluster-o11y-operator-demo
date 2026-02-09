@@ -1,0 +1,12 @@
+---
+# Troubleshooting Panel UI Plugin for Cluster Observability Operator
+# Provides observability signal correlation powered by Korrel8r
+# Available from the Application Launcher and Observe → Alerting
+# Displays an interactive node graph correlating metrics, logs, alerts, netflows
+# Note: Requires OpenShift 4.19+ for GA support
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: troubleshooting-panel
+spec:
+  type: TroubleshootingPanel

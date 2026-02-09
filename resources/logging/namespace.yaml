@@ -1,8 +1,0 @@
-# Namespace for OpenShift Logging
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: openshift-logging
-  labels:
-    openshift.io/cluster-monitoring: "true"
-

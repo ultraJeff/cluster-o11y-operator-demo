@@ -1,0 +1,12 @@
+---
+# Distributed Tracing UI Plugin for Cluster Observability Operator
+# Adds tracing-related features to the OpenShift web console at Observe → Traces
+# Requires a TempoStack or TempoMonolithic instance in the cluster
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: distributed-tracing
+spec:
+  type: DistributedTracing
+  distributedTracing:
+    timeout: 30s

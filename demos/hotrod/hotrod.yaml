@@ -1,0 +1,86 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hotrod-demo
+  labels:
+    name: hotrod-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hotrod
+  namespace: hotrod-demo
+  labels:
+    app: hotrod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hotrod
+  template:
+    metadata:
+      labels:
+        app: hotrod
+    spec:
+      containers:
+      - name: hotrod
+        image: jaegertracing/example-hotrod:latest
+        ports:
+        - containerPort: 8080
+          name: frontend
+        - containerPort: 8081
+          name: customer
+        - containerPort: 8082
+          name: driver
+        - containerPort: 8083
+          name: route
+        env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://tracing-collector.observability.svc:4318"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+              - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hotrod
+  namespace: hotrod-demo
+  labels:
+    app: hotrod
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: frontend
+  selector:
+    app: hotrod
+  type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: hotrod
+  namespace: hotrod-demo
+spec:
+  to:
+    kind: Service
+    name: hotrod
+  port:
+    targetPort: frontend
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
