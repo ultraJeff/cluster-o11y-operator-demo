@@ -164,6 +164,7 @@ spec:
               mc mb --ignore-existing myminio/loki
               mc mb --ignore-existing myminio/logging-loki
               mc mb --ignore-existing myminio/tempo
+              mc mb --ignore-existing myminio/thanos
               mc ls myminio/
               echo "Buckets created successfully"
           securityContext:

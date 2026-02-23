@@ -1,0 +1,9 @@
+---
+# MultiClusterHub - deploys all ACM components
+# This takes 10-20 minutes to fully reconcile on a fresh install
+apiVersion: operator.open-cluster-management.io/v1
+kind: MultiClusterHub
+metadata:
+  name: multiclusterhub
+  namespace: open-cluster-management
+spec: {}

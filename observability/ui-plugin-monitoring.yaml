@@ -2,6 +2,15 @@
 # Monitoring UI Plugin for Cluster Observability Operator
 # Adds monitoring features including incident detection to the Administrator perspective
 # Groups related alerts into incidents for easier root cause analysis
+#
+# ACM Integration:
+#   The acm section enables RHACM (Red Hat Advanced Cluster Management) integration,
+#   providing the same alerting and querying capabilities as OpenShift in the ACM console.
+#   Prerequisites:
+#     - RHACM installed on the hub cluster
+#     - Multicluster Observability Operator (MCO) deployed
+#     - open-cluster-management-observability namespace with Alertmanager and RBAC query proxy
+#   If you are NOT using ACM, you can remove the acm section entirely.
 apiVersion: observability.openshift.io/v1alpha1
 kind: UIPlugin
 metadata:
@@ -9,5 +18,11 @@ metadata:
 spec:
   type: Monitoring
   monitoring:
+    acm:
+      enabled: true
+      alertmanager:
+        url: 'https://alertmanager.open-cluster-management-observability.svc:9095'
+      thanosQuerier:
+        url: 'https://rbac-query-proxy.open-cluster-management-observability.svc:8443'
     incidents:
       enabled: true

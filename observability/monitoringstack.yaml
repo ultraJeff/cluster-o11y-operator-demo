@@ -1,0 +1,35 @@
+---
+# MonitoringStack - deploys a dedicated Prometheus instance for demo workloads
+# This demonstrates COO's ability to create per-team/per-use-case Prometheus instances
+# separate from the platform monitoring and User Workload Monitoring
+#
+# The MonitoringStack watches for ServiceMonitors with the label "monitoring: demo"
+# in the hotrod-demo and dotnet-tracing-demo namespaces.
+apiVersion: monitoring.rhobs/v1alpha1
+kind: MonitoringStack
+metadata:
+  name: demo-monitoring
+  namespace: observability
+spec:
+  logLevel: debug
+  retention: 24h
+  resourceSelector:
+    matchLabels:
+      monitoring: demo
+  namespaceSelector:
+    matchExpressions:
+      - key: name
+        operator: In
+        values:
+          - hotrod-demo
+          - dotnet-tracing-demo
+  prometheusConfig:
+    replicas: 1
+    scrapeInterval: 30s
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

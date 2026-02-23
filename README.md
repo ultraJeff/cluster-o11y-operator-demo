@@ -8,7 +8,8 @@ The Cluster Observability Operator provides a unified observability experience i
 
 - **Logging** - Log collection and viewing via LokiStack
 - **Distributed Tracing** - Trace visualization via TempoStack
-- **Monitoring** - Enhanced monitoring UI
+- **Monitoring** - Enhanced monitoring UI with ACM integration and incident detection
+- **MonitoringStack** - Per-team Prometheus instances via COO
 - **Dashboards** - Custom dashboard support
 - **Troubleshooting Panel** - Integrated troubleshooting tools
 
@@ -23,7 +24,9 @@ The Cluster Observability Operator provides a unified observability experience i
 │   ├── lokistack.yaml       # Log storage configuration
 │   ├── observability-installer.yaml  # TempoStack + OTel Collector
 │   ├── clusterlogforwarder.yaml      # Log forwarding config
-│   ├── ui-plugin-*.yaml     # UI plugin configurations
+│   ├── monitoringstack.yaml  # Dedicated Prometheus for demo workloads
+│   ├── servicemonitors.yaml  # ServiceMonitors for demo apps
+│   ├── ui-plugin-*.yaml     # UI plugin configurations (incl. ACM)
 │   └── sample-tracing-app.yaml       # Simple trace generator
 ├── demos/
 │   ├── hotrod/              # Jaeger HotROD demo (Go, 4 services)
@@ -53,6 +56,7 @@ oc get csv -A | grep -E "loki|tempo|opentelemetry|observability|logging"
 oc get lokistack -A
 oc get tempostack -A
 oc get opentelemetrycollector -A
+oc get monitoringstack -A
 oc get uiplugin
 ```
 
@@ -113,6 +117,30 @@ The `ObservabilityInstaller` CRD simplifies distributed tracing setup by automat
 - OpenTelemetry Collector with k8sattributes processor
 - All necessary RBAC
 
+### MonitoringStack
+
+The `MonitoringStack` CRD (provided by COO) deploys a dedicated Prometheus instance separate from the platform monitoring and User Workload Monitoring. This demo includes a MonitoringStack that:
+
+- Deploys its own Prometheus (1 replica) in the `observability` namespace
+- Scrapes ServiceMonitors labeled `monitoring: demo` in the `hotrod-demo` and `dotnet-tracing-demo` namespaces
+- Uses 24h retention with resource limits appropriate for demos
+
+This demonstrates COO's multi-tenancy capability: teams can have isolated Prometheus instances with independent retention, resource limits, and namespace scoping.
+
+### ACM Integration
+
+The monitoring UI plugin is configured with Red Hat Advanced Cluster Management (RHACM) integration, which provides:
+
+- **Alerting in ACM** - The same alerting capabilities as OpenShift, surfaced in the ACM console perspective
+- **Incident detection** - Groups related alerts into incidents for root cause analysis
+
+**Prerequisites for ACM features:**
+- RHACM installed on the hub cluster
+- Multicluster Observability Operator (MCO) deployed
+- The `open-cluster-management-observability` namespace with Alertmanager and RBAC query proxy services
+
+If you are not using ACM, remove the `acm` section from `observability/ui-plugin-monitoring.yaml`.
+
 ## Demo Applications
 
 ### HotROD
@@ -133,6 +161,7 @@ After deployment, access the observability features in the OpenShift Console:
 - **Observe → Traces** - View distributed traces
 - **Observe → Dashboards** - Custom dashboards
 - **Observe → Targets** - Prometheus targets (with Monitoring plugin)
+- **Observe → Alerting → Incidents** - Alert correlation and incident detection (with Monitoring plugin)
 
 ## Troubleshooting
 
@@ -162,5 +191,7 @@ Ensure the user has:
 ## References
 
 - [COO Documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_cluster_observability_operator)
+- [COO UI Plugins](https://docs.redhat.com/en/documentation/red_hat_openshift_cluster_observability_operator/1-latest/html-single/ui_plugins_for_red_hat_openshift_cluster_observability_operator/index)
+- [COO Monitoring API Reference](https://docs.redhat.com/en/documentation/openshift_container_platform/4.14/html/cluster_observability_operator/api-monitoring-package)
 - [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/net/)
 - [Jaeger HotROD](https://github.com/jaegertracing/jaeger/tree/main/examples/hotrod)

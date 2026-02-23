@@ -27,6 +27,15 @@ resources:
 # This is a Technology Preview feature that simplifies distributed tracing setup
 - observability-installer.yaml
 
+# MonitoringStack - dedicated Prometheus for demo workloads (COO feature)
+- monitoringstack.yaml
+
+# ServiceMonitors for demo apps (scraped by the MonitoringStack)
+- servicemonitors.yaml
+
+# PrometheusRules for demo app alerts (routed through MonitoringStack Alertmanager)
+- prometheusrules.yaml
+
 # Sample app to generate traces (for demo/testing)
 - sample-tracing-app.yaml
 

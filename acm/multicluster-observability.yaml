@@ -1,0 +1,47 @@
+---
+# Namespace for Multicluster Observability Operator (MCO)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: open-cluster-management-observability
+  labels:
+    name: open-cluster-management-observability
+---
+# Thanos object storage secret pointing to the existing MinIO instance
+# MCO uses Thanos for long-term metric storage and cross-cluster querying
+apiVersion: v1
+kind: Secret
+metadata:
+  name: thanos-object-storage
+  namespace: open-cluster-management-observability
+type: Opaque
+stringData:
+  thanos.yaml: |
+    type: s3
+    config:
+      bucket: thanos
+      endpoint: minio.minio.svc:9000
+      insecure: true
+      access_key: minio
+      secret_key: minio123
+---
+# MultiClusterObservability CR
+# Deploys Thanos, Alertmanager, Grafana, and metric collection for managed clusters
+#
+# Prerequisites:
+#   - MultiClusterHub must be in Running state
+#   - pull-secret must be copied to open-cluster-management-observability namespace
+#     (done at deploy time: oc get secret pull-secret -n openshift-config -o yaml | \
+#      sed 's/namespace: openshift-config/namespace: open-cluster-management-observability/' | \
+#      oc apply -f -)
+#   - The 'thanos' bucket must exist in MinIO
+apiVersion: observability.open-cluster-management.io/v1beta2
+kind: MultiClusterObservability
+metadata:
+  name: observability
+spec:
+  observabilityAddonSpec: {}
+  storageConfig:
+    metricObjectStorage:
+      name: thanos-object-storage
+      key: thanos.yaml
