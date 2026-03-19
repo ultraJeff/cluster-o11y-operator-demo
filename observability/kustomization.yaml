@@ -7,42 +7,20 @@ metadata:
     config.openshift.io/description: "Cluster Observability Operator and UI Plugins"
 
 resources:
-# Operators
-- loki-operator.yaml
-- tempo-operator.yaml
-- opentelemetry-operator.yaml
-- cluster-observability-operator.yaml
-- cluster-logging-operator.yaml
+# Operator subscriptions (install first — CRDs must exist before instances)
+- operators/
 
-# Object storage for Loki and Tempo
-- minio.yaml
+# S3-compatible object storage for Loki and Tempo backends
+- storage/
 
-# LokiStack for logging
-- lokistack.yaml
+# LokiStack and log forwarding pipeline
+- logging/
 
-# Log collection and forwarding
-- clusterlogforwarder.yaml
+# TempoStack + OTel Collector (via ObservabilityInstaller) and sample trace generator
+- tracing/
 
-# ObservabilityInstaller - creates TempoStack and OTel Collector automatically
-# This is a Technology Preview feature that simplifies distributed tracing setup
-- observability-installer.yaml
+# MonitoringStack (dedicated Prometheus), ServiceMonitors, and alerting rules
+- monitoring/
 
-# MonitoringStack - dedicated Prometheus for demo workloads (COO feature)
-- monitoringstack.yaml
-
-# ServiceMonitors for demo apps (scraped by the MonitoringStack)
-- servicemonitors.yaml
-
-# PrometheusRules for demo app alerts (routed through MonitoringStack Alertmanager)
-- prometheusrules.yaml
-
-# Sample app to generate traces (for demo/testing)
-- sample-tracing-app.yaml
-
-# UI Plugins - Applied after operator is ready
-# These require the COO CRDs to be available
-- ui-plugin-logging.yaml
-- ui-plugin-monitoring.yaml
-- ui-plugin-distributed-tracing.yaml
-- ui-plugin-troubleshooting-panel.yaml
-- ui-plugin-dashboards.yaml
+# COO console UI plugins (require operator CRDs)
+- ui-plugins/

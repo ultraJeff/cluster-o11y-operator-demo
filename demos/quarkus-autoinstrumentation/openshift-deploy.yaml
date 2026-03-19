@@ -1,0 +1,207 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quarkus-otel-demo
+  labels:
+    name: quarkus-otel-demo
+---
+# Instrumentation CR — the OpenTelemetry Operator injects the Java agent into
+# any pod whose Deployment carries the inject-java annotation. The application
+# code has zero OTel dependencies; all instrumentation is handled by the agent.
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: java-instrumentation
+  namespace: quarkus-otel-demo
+spec:
+  exporter:
+    env:
+      - name: OTEL_SEMCONV_STABILITY_OPT_IN
+        value: http
+    endpoint: http://tracing-collector.observability.svc.cluster.local:4317
+  propagators:
+    - tracecontext
+    - baggage
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1"
+  java:
+    resources:
+      limits: {}
+      requests: {}
+---
+# ── Catalog Service ──────────────────────────────────────────────────────────
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: catalog-service
+  namespace: quarkus-otel-demo
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: catalog-service
+  namespace: quarkus-otel-demo
+spec:
+  source:
+    type: Binary
+    binary: {}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: catalog-service:latest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-service
+  namespace: quarkus-otel-demo
+  labels:
+    app: catalog-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalog-service
+  template:
+    metadata:
+      labels:
+        app: catalog-service
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "true"
+    spec:
+      containers:
+      - name: catalog-service
+        image: image-registry.openshift-image-registry.svc:5000/quarkus-otel-demo/catalog-service:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+              - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-service
+  namespace: quarkus-otel-demo
+  labels:
+    app: catalog-service
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: catalog-service
+  type: ClusterIP
+---
+# ── Store Frontend ───────────────────────────────────────────────────────────
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: store-frontend
+  namespace: quarkus-otel-demo
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: store-frontend
+  namespace: quarkus-otel-demo
+spec:
+  source:
+    type: Binary
+    binary: {}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: store-frontend:latest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: store-frontend
+  namespace: quarkus-otel-demo
+  labels:
+    app: store-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: store-frontend
+  template:
+    metadata:
+      labels:
+        app: store-frontend
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "true"
+    spec:
+      containers:
+      - name: store-frontend
+        image: image-registry.openshift-image-registry.svc:5000/quarkus-otel-demo/store-frontend:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+              - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: store-frontend
+  namespace: quarkus-otel-demo
+  labels:
+    app: store-frontend
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: store-frontend
+  type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: store-frontend
+  namespace: quarkus-otel-demo
+spec:
+  to:
+    kind: Service
+    name: store-frontend
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

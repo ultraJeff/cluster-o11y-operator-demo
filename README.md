@@ -17,22 +17,29 @@ The Cluster Observability Operator provides a unified observability experience i
 
 ```
 .
-├── observability/           # Core observability infrastructure
-│   ├── kustomization.yaml   # Kustomize entry point
-│   ├── *-operator.yaml      # Operator subscriptions
-│   ├── minio.yaml           # Object storage for Loki/Tempo
-│   ├── lokistack.yaml       # Log storage configuration
-│   ├── observability-installer.yaml  # TempoStack + OTel Collector
-│   ├── clusterlogforwarder.yaml      # Log forwarding config
-│   ├── monitoringstack.yaml  # Dedicated Prometheus for demo workloads
-│   ├── servicemonitors.yaml  # ServiceMonitors for demo apps
-│   ├── ui-plugin-*.yaml     # UI plugin configurations (incl. ACM)
-│   └── sample-tracing-app.yaml       # Simple trace generator
+├── observability/                # Core observability infrastructure
+│   ├── kustomization.yaml        # Top-level entry point (references subdirs)
+│   ├── operators/                # OLM subscriptions for all operators
+│   ├── storage/                  # MinIO object storage for Loki/Tempo
+│   ├── logging/                  # LokiStack and ClusterLogForwarder
+│   ├── tracing/                  # ObservabilityInstaller + sample trace generator
+│   ├── monitoring/               # MonitoringStack, ServiceMonitors, alert rules
+│   └── ui-plugins/               # COO console UI plugins
 ├── demos/
-│   ├── hotrod/              # Jaeger HotROD demo (Go, 4 services)
-│   └── dotnet-tracing/      # .NET 8 demo (3 services)
+│   ├── hotrod/                   # Jaeger HotROD demo (Go, 4 services)
+│   ├── dotnet-tracing/           # .NET 8 demo (3 services, SDK instrumentation)
+│   └── quarkus-autoinstrumentation/  # Quarkus demo (2 services, zero-code OTel)
+├── acm/                          # Optional ACM hub (MultiClusterHub + MCO)
 └── rbac/
-    └── traces-reader.yaml   # RBAC for trace access
+    └── traces-reader.yaml        # RBAC for trace access
+```
+
+Each subdirectory under `observability/` has its own `kustomization.yaml`, so you can apply individual pieces:
+
+```bash
+oc apply -k observability/operators/    # Just the operator subscriptions
+oc apply -k observability/logging/      # Just LokiStack + log forwarding
+oc apply -k observability/tracing/      # Just TempoStack + OTel Collector
 ```
 
 ## Quick Start
@@ -78,6 +85,19 @@ oc start-build order-service --from-dir=demos/dotnet-tracing/src/OrderService -n
 oc start-build frontend --from-dir=demos/dotnet-tracing/src/Frontend -n dotnet-tracing-demo --follow
 ```
 
+#### Quarkus Auto-Instrumentation Demo
+```bash
+# Apply manifests (includes Instrumentation CR for zero-code OTel)
+oc apply -f demos/quarkus-autoinstrumentation/openshift-deploy.yaml
+
+# Build services
+oc start-build catalog-service --from-dir=demos/quarkus-autoinstrumentation/src/catalog-service -n quarkus-otel-demo --follow
+oc start-build store-frontend --from-dir=demos/quarkus-autoinstrumentation/src/store-frontend -n quarkus-otel-demo --follow
+
+# Restart deployments to pick up new images
+oc rollout restart deployment -n quarkus-otel-demo
+```
+
 ### 4. Grant User Access
 
 ```bash
@@ -92,6 +112,7 @@ oc create clusterrolebinding user1-traces-reader \
 # Grant namespace access
 oc create rolebinding user1-view --clusterrole=view --user=user1 -n hotrod-demo
 oc create rolebinding user1-view --clusterrole=view --user=user1 -n dotnet-tracing-demo
+oc create rolebinding user1-view --clusterrole=view --user=user1 -n quarkus-otel-demo
 ```
 
 ## Components
@@ -139,7 +160,7 @@ The monitoring UI plugin is configured with Red Hat Advanced Cluster Management 
 - Multicluster Observability Operator (MCO) deployed
 - The `open-cluster-management-observability` namespace with Alertmanager and RBAC query proxy services
 
-If you are not using ACM, remove the `acm` section from `observability/ui-plugin-monitoring.yaml`.
+If you are not using ACM, remove the `acm` section from `observability/ui-plugins/ui-plugin-monitoring.yaml`.
 
 ## Demo Applications
 
@@ -147,11 +168,18 @@ If you are not using ACM, remove the `acm` section from `observability/ui-plugin
 A ride-sharing simulation with 4 interconnected services demonstrating distributed tracing in Go.
 
 ### .NET Tracing Demo
-A 3-service .NET 8 application showing:
+A 3-service .NET 8 application showing SDK-based instrumentation:
 - Automatic ASP.NET Core instrumentation
 - Automatic HttpClient instrumentation (context propagation)
 - Custom spans with `ActivitySource`
 - OTLP gRPC export
+
+### Quarkus Auto-Instrumentation Demo
+A 2-service Quarkus application demonstrating **zero-code** OpenTelemetry auto-instrumentation:
+- No OTel dependencies or code in the application
+- Java agent injected automatically by the OpenTelemetry Operator via `Instrumentation` CR
+- Uses `instrumentation.opentelemetry.io/inject-java: "true"` annotation on Deployments
+- Distributed tracing across services with no developer effort
 
 ## Accessing the UI
 
@@ -195,3 +223,5 @@ Ensure the user has:
 - [COO Monitoring API Reference](https://docs.redhat.com/en/documentation/openshift_container_platform/4.14/html/cluster_observability_operator/api-monitoring-package)
 - [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/net/)
 - [Jaeger HotROD](https://github.com/jaegertracing/jaeger/tree/main/examples/hotrod)
+- [How to use auto-instrumentation with OpenTelemetry](https://developers.redhat.com/articles/2026/02/25/how-use-auto-instrumentation-opentelemetry)
+- [How Quarkus works with OpenTelemetry on OpenShift](https://developers.redhat.com/articles/2025/07/07/how-quarkus-works-opentelemetry-openshift)
