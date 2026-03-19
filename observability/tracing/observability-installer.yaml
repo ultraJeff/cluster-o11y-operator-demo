@@ -1,4 +1,3 @@
----
 # Namespace for centralized observability components
 # The ObservabilityInstaller creates TempoStack and OTel Collector here
 apiVersion: v1
@@ -7,6 +6,9 @@ metadata:
   name: observability
   labels:
     name: observability
+  annotations:
+    argocd.argoproj.io/sync-wave: '2'
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 ---
 # Secret for ObservabilityInstaller to access MinIO storage
 apiVersion: v1
@@ -14,6 +16,9 @@ kind: Secret
 metadata:
   name: minio-secret
   namespace: observability
+  annotations:
+    argocd.argoproj.io/sync-wave: '2'
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 type: Opaque
 stringData:
   access_key_secret: minio123
@@ -26,6 +31,9 @@ kind: ObservabilityInstaller
 metadata:
   name: tracing
   namespace: observability
+  annotations:
+    argocd.argoproj.io/sync-wave: '2'
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   capabilities:
     tracing:

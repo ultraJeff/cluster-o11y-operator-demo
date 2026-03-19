@@ -1,4 +1,3 @@
----
 # Loki Operator for LokiStack deployments
 # Used by both logging and network observability
 apiVersion: v1
@@ -8,12 +7,16 @@ metadata:
   labels:
     name: openshift-operators-redhat
     openshift.io/cluster-monitoring: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
 ---
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
   name: openshift-operators-redhat
   namespace: openshift-operators-redhat
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
 spec: {}
 ---
 apiVersion: operators.coreos.com/v1alpha1
@@ -21,6 +24,8 @@ kind: Subscription
 metadata:
   name: loki-operator
   namespace: openshift-operators-redhat
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
 spec:
   channel: stable-6.2
   installPlanApproval: Automatic

@@ -1,4 +1,3 @@
----
 # ServiceMonitor for HotROD demo app
 # The "monitoring: demo" label connects this to the MonitoringStack's resourceSelector
 # HotROD (Go/Jaeger) exposes Prometheus metrics on its frontend port
@@ -9,14 +8,17 @@ metadata:
   namespace: hotrod-demo
   labels:
     monitoring: demo
+  annotations:
+    argocd.argoproj.io/sync-wave: '2'
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   selector:
     matchLabels:
       app: hotrod
   endpoints:
-    - port: frontend
-      path: /metrics
-      interval: 30s
+  - port: frontend
+    path: /metrics
+    interval: 30s
 # NOTE: The .NET demo services (dotnet-tracing-demo) do not currently expose
 # a /metrics endpoint. To add Prometheus metrics to the .NET apps, add the
 # prometheus-net.AspNetCore NuGet package and call app.MapPrometheusScrapingEndpoint()

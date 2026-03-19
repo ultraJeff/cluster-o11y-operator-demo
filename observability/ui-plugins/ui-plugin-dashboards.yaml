@@ -1,8 +1,10 @@
----
 # Dashboards UIPlugin - Custom dashboard support via Perses
 apiVersion: observability.openshift.io/v1alpha1
 kind: UIPlugin
 metadata:
   name: dashboards
+  annotations:
+    argocd.argoproj.io/sync-wave: '3'
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   type: Dashboards

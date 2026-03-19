@@ -1,4 +1,3 @@
----
 # Troubleshooting Panel UI Plugin for Cluster Observability Operator
 # Provides observability signal correlation powered by Korrel8r
 # Available from the Application Launcher and Observe → Alerting
@@ -8,5 +7,8 @@ apiVersion: observability.openshift.io/v1alpha1
 kind: UIPlugin
 metadata:
   name: troubleshooting-panel
+  annotations:
+    argocd.argoproj.io/sync-wave: '3'
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   type: TroubleshootingPanel

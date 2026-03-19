@@ -1,4 +1,3 @@
----
 # MonitoringStack - deploys a dedicated Prometheus instance for demo workloads
 # This demonstrates COO's ability to create per-team/per-use-case Prometheus instances
 # separate from the platform monitoring and User Workload Monitoring
@@ -10,6 +9,9 @@ kind: MonitoringStack
 metadata:
   name: demo-monitoring
   namespace: observability
+  annotations:
+    argocd.argoproj.io/sync-wave: '2'
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   logLevel: debug
   retention: 24h
@@ -18,11 +20,11 @@ spec:
       monitoring: demo
   namespaceSelector:
     matchExpressions:
-      - key: name
-        operator: In
-        values:
-          - hotrod-demo
-          - dotnet-tracing-demo
+    - key: name
+      operator: In
+      values:
+      - hotrod-demo
+      - dotnet-tracing-demo
   prometheusConfig:
     replicas: 1
     scrapeInterval: 30s
