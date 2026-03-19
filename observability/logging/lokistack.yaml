@@ -47,7 +47,7 @@ spec:
       name: loki-minio-credentials
       type: s3
   # Storage class for Loki's internal data
-  storageClassName: gp3-csi
+  # Uses default StorageClass (gp3-csi on AWS, lvms-lvmstorage on SNO)
   # Tenant mode for OpenShift logging
   tenants:
     mode: openshift-logging
