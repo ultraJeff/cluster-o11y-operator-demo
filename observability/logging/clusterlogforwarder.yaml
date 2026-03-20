@@ -5,7 +5,6 @@ metadata:
   name: cluster-logging-collector
   namespace: openshift-logging
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 ---
 # RBAC for log collector - write to Loki
@@ -14,7 +13,6 @@ kind: ClusterRoleBinding
 metadata:
   name: cluster-logging-collector-logs-writer
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -31,7 +29,6 @@ kind: ClusterRoleBinding
 metadata:
   name: cluster-logging-collector-collect-application
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -48,7 +45,6 @@ kind: ClusterRoleBinding
 metadata:
   name: cluster-logging-collector-collect-infrastructure
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -66,7 +62,6 @@ metadata:
   name: collector
   namespace: openshift-logging
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   serviceAccount:

@@ -7,7 +7,6 @@ metadata:
     name: openshift-logging
     openshift.io/cluster-monitoring: "true"
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 ---
 # Secret for LokiStack to access MinIO
@@ -17,7 +16,6 @@ metadata:
   name: loki-minio-credentials
   namespace: openshift-logging
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 type: Opaque
 stringData:
@@ -33,7 +31,6 @@ metadata:
   name: logging-loki
   namespace: openshift-logging
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   # Demo/dev size - minimal resources

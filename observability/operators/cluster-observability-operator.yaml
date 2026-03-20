@@ -5,16 +5,12 @@ metadata:
   labels:
     name: openshift-cluster-observability-operator
     openshift.io/cluster-monitoring: "true"
-  annotations:
-    argocd.argoproj.io/sync-wave: '0'
 ---
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
   name: cluster-observability-operatorgroup
   namespace: openshift-cluster-observability-operator
-  annotations:
-    argocd.argoproj.io/sync-wave: '0'
 spec:
   upgradeStrategy: Default
 ---
@@ -23,8 +19,6 @@ kind: Subscription
 metadata:
   name: cluster-observability-operator
   namespace: openshift-cluster-observability-operator
-  annotations:
-    argocd.argoproj.io/sync-wave: '0'
 spec:
   channel: stable
   installPlanApproval: Automatic

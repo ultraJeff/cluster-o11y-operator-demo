@@ -7,7 +7,6 @@ metadata:
   labels:
     name: observability
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 ---
 # Secret for ObservabilityInstaller to access MinIO storage
@@ -17,7 +16,6 @@ metadata:
   name: minio-secret
   namespace: observability
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 type: Opaque
 stringData:
@@ -32,7 +30,6 @@ metadata:
   name: tracing
   namespace: observability
   annotations:
-    argocd.argoproj.io/sync-wave: '2'
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   capabilities:
