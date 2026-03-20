@@ -16,11 +16,8 @@ resources:
 # LokiStack and log forwarding pipeline
 - logging/
 
-# TempoStack + OTel Collector (via ObservabilityInstaller) and sample trace generator
+# TempoStack + OTel Collector (via ObservabilityInstaller)
 - tracing/
-
-# MonitoringStack (dedicated Prometheus), ServiceMonitors, and alerting rules
-- monitoring/
 
 # COO console UI plugins (require operator CRDs)
 - ui-plugins/

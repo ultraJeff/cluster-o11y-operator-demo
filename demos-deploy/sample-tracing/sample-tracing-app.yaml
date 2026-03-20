@@ -6,8 +6,6 @@ metadata:
   name: tracing-demo
   labels:
     name: tracing-demo
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -16,8 +14,6 @@ metadata:
   namespace: tracing-demo
   labels:
     app: trace-generator
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   replicas: 1
   selector:
@@ -27,8 +23,6 @@ spec:
     metadata:
       labels:
         app: trace-generator
-      annotations:
-        argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     spec:
       containers:
       - name: trace-generator

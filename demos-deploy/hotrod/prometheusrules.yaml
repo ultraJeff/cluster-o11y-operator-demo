@@ -17,7 +17,6 @@ spec:
   groups:
     - name: hotrod.rules
       rules:
-        # Alert: HotROD target is down
         - alert: HotRODDown
           expr: up{job="hotrod"} == 0
           for: 1m
@@ -28,7 +27,6 @@ spec:
             summary: "HotROD application is down"
             description: "The HotROD application in namespace {{ $labels.namespace }} has been unreachable for more than 1 minute."
 
-        # Alert: High request latency (p99 > 2 seconds)
         - alert: HotRODHighLatency
           expr: histogram_quantile(0.99, rate(hotrod_request_latency_bucket{job="hotrod"}[5m])) > 2
           for: 2m
@@ -39,7 +37,6 @@ spec:
             summary: "HotROD high request latency"
             description: "HotROD p99 latency is above 2 seconds (current: {{ $value | humanizeDuration }})."
 
-        # Alert: High error rate (> 5% of requests failing)
         - alert: HotRODHighErrorRate
           expr: |
             (
