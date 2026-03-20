@@ -1,9 +1,9 @@
-package com.example.store;
+package com.example.order;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
-public record OrderRequest(
+public record CreateOrderRequest(
         @NotBlank(message = "productId is required") String productId,
         @Min(value = 1, message = "quantity must be at least 1") int quantity) {
 }

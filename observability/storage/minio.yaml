@@ -159,9 +159,10 @@ spec:
           sleep 30
           # Configure mc client
           mc alias set myminio http://minio.minio.svc.cluster.local:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
-          # Create buckets for Loki and Tempo
+          # Create buckets for Loki, Tempo, and Network Observability
           mc mb --ignore-existing myminio/loki
           mc mb --ignore-existing myminio/logging-loki
+          mc mb --ignore-existing myminio/netobserv-loki
           mc mb --ignore-existing myminio/tempo
           mc mb --ignore-existing myminio/thanos
           mc ls myminio/

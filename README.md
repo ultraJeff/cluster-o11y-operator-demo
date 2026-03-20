@@ -17,21 +17,24 @@ The Cluster Observability Operator provides a unified observability experience i
 
 ```
 .
-├── observability/                # Core observability infrastructure
-│   ├── kustomization.yaml        # Top-level entry point (references subdirs)
-│   ├── operators/                # OLM subscriptions for all operators
-│   ├── storage/                  # MinIO object storage for Loki/Tempo
-│   ├── logging/                  # LokiStack and ClusterLogForwarder
-│   ├── tracing/                  # ObservabilityInstaller + sample trace generator
-│   ├── monitoring/               # MonitoringStack, ServiceMonitors, alert rules
-│   └── ui-plugins/               # COO console UI plugins
-├── demos/
-│   ├── hotrod/                   # Jaeger HotROD demo (Go, 4 services)
-│   ├── dotnet-tracing/           # .NET 8 demo (3 services, SDK instrumentation)
-│   └── quarkus-autoinstrumentation/  # Quarkus demo (2 services, zero-code OTel)
-├── acm/                          # Optional ACM hub (MultiClusterHub + MCO)
+├── observability/                    # Core observability infrastructure
+│   ├── kustomization.yaml            # Top-level entry point (references subdirs)
+│   ├── operators/                    # OLM subscriptions for all operators
+│   ├── storage/                      # MinIO object storage for Loki/Tempo
+│   ├── logging/                      # LokiStack and ClusterLogForwarder
+│   ├── tracing/                      # ObservabilityInstaller + OTel Collector
+│   ├── monitoring/                   # MonitoringStack, ServiceMonitors, alert rules
+│   └── ui-plugins/                   # COO console UI plugins
+├── demos/                            # All demo applications
+│   ├── kustomization.yaml            # Applies pre-built demos via kustomize
+│   ├── monitoringstack.yaml          # Shared MonitoringStack for demo namespaces
+│   ├── hotrod/                       # Jaeger HotROD (Go, 4 services, pre-built image)
+│   ├── sample-tracing/               # Synthetic trace generator (pre-built image)
+│   ├── dotnet-tracing/               # .NET 8 demo (3 services, SDK instrumentation)
+│   └── quarkus-autoinstrumentation/  # Quarkus demo (3 services, zero-code OTel)
+├── acm/                              # Optional ACM hub (MultiClusterHub + MCO)
 └── rbac/
-    └── traces-reader.yaml        # RBAC for trace access
+    └── traces-reader.yaml            # RBAC for trace access
 ```
 
 Each subdirectory under `observability/` has its own `kustomization.yaml`, so you can apply individual pieces:
@@ -69,33 +72,32 @@ oc get uiplugin
 
 ### 3. Deploy Demo Applications
 
-#### HotROD (Jaeger demo)
+#### Pre-built demos (HotROD + sample trace generator)
+
 ```bash
-oc apply -f demos/hotrod/hotrod.yaml
+# Deploy all pre-built demos at once via kustomize
+oc apply -k demos/
+
+# Or individually
+oc apply -k demos/hotrod/
+oc apply -k demos/sample-tracing/
 ```
 
 #### .NET Distributed Tracing Demo
-```bash
-# Apply manifests
-oc apply -f demos/dotnet-tracing/openshift-deploy.yaml
 
-# Build services
+```bash
+oc apply -f demos/dotnet-tracing/openshift-deploy.yaml
 oc start-build inventory-service --from-dir=demos/dotnet-tracing/src/InventoryService -n dotnet-tracing-demo --follow
 oc start-build order-service --from-dir=demos/dotnet-tracing/src/OrderService -n dotnet-tracing-demo --follow
 oc start-build frontend --from-dir=demos/dotnet-tracing/src/Frontend -n dotnet-tracing-demo --follow
 ```
 
 #### Quarkus Auto-Instrumentation Demo
+
 ```bash
-# Apply manifests (includes Instrumentation CR for zero-code OTel)
-oc apply -f demos/quarkus-autoinstrumentation/openshift-deploy.yaml
-
-# Build services
-oc start-build catalog-service --from-dir=demos/quarkus-autoinstrumentation/src/catalog-service -n quarkus-otel-demo --follow
-oc start-build store-frontend --from-dir=demos/quarkus-autoinstrumentation/src/store-frontend -n quarkus-otel-demo --follow
-
-# Restart deployments to pick up new images
-oc rollout restart deployment -n quarkus-otel-demo
+cd demos/quarkus-autoinstrumentation
+./deploy.sh all        # Apply manifests, build, restart, wait for rollout
+./generate-traces.sh   # Generate sample traffic for traces
 ```
 
 ### 4. Grant User Access
@@ -143,7 +145,7 @@ The `ObservabilityInstaller` CRD simplifies distributed tracing setup by automat
 The `MonitoringStack` CRD (provided by COO) deploys a dedicated Prometheus instance separate from the platform monitoring and User Workload Monitoring. This demo includes a MonitoringStack that:
 
 - Deploys its own Prometheus (1 replica) in the `observability` namespace
-- Scrapes ServiceMonitors labeled `monitoring: demo` in the `hotrod-demo` and `dotnet-tracing-demo` namespaces
+- Scrapes ServiceMonitors labeled `monitoring: demo` in the `hotrod-demo`, `dotnet-tracing-demo`, and `quarkus-otel-demo` namespaces
 - Uses 24h retention with resource limits appropriate for demos
 
 This demonstrates COO's multi-tenancy capability: teams can have isolated Prometheus instances with independent retention, resource limits, and namespace scoping.
@@ -165,7 +167,10 @@ If you are not using ACM, remove the `acm` section from `observability/ui-plugin
 ## Demo Applications
 
 ### HotROD
-A ride-sharing simulation with 4 interconnected services demonstrating distributed tracing in Go.
+A ride-sharing simulation with 4 interconnected services demonstrating distributed tracing in Go. Uses a pre-built public image (`jaegertracing/example-hotrod`).
+
+### Sample Tracing
+A synthetic trace generator using the OTel contrib `telemetrygen` tool. Continuously sends traces to the collector at a configurable rate — useful for verifying the tracing pipeline without a full application.
 
 ### .NET Tracing Demo
 A 3-service .NET 8 application showing SDK-based instrumentation:
@@ -175,10 +180,11 @@ A 3-service .NET 8 application showing SDK-based instrumentation:
 - OTLP gRPC export
 
 ### Quarkus Auto-Instrumentation Demo
-A 2-service Quarkus application demonstrating **zero-code** OpenTelemetry auto-instrumentation:
+A 3-service Quarkus application demonstrating **zero-code** OpenTelemetry auto-instrumentation:
 - No OTel dependencies or code in the application
 - Java agent injected automatically by the OpenTelemetry Operator via `Instrumentation` CR
 - Uses `instrumentation.opentelemetry.io/inject-java: "true"` annotation on Deployments
+- 3-level deep traces: store-frontend → order-service → catalog-service + JDBC spans
 - Distributed tracing across services with no developer effort
 
 ## Accessing the UI

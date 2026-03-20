@@ -16,10 +16,14 @@ metadata:
   namespace: quarkus-otel-demo
 spec:
   exporter:
-    env:
-      - name: OTEL_SEMCONV_STABILITY_OPT_IN
-        value: http
     endpoint: http://tracing-collector.observability.svc.cluster.local:4317
+  env:
+    - name: OTEL_SEMCONV_STABILITY_OPT_IN
+      value: http
+    - name: OTEL_METRICS_EXPORTER
+      value: none
+    - name: OTEL_LOGS_EXPORTER
+      value: none
   propagators:
     - tracecontext
     - baggage
@@ -80,6 +84,18 @@ spec:
         image: image-registry.openshift-image-registry.svc:5000/quarkus-otel-demo/catalog-service:latest
         ports:
         - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /q/health/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /q/health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
         resources:
           requests:
             memory: "256Mi"
@@ -109,6 +125,98 @@ spec:
     targetPort: 8080
   selector:
     app: catalog-service
+  type: ClusterIP
+---
+# ── Order Service ────────────────────────────────────────────────────────────
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: order-service
+  namespace: quarkus-otel-demo
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: order-service
+  namespace: quarkus-otel-demo
+spec:
+  source:
+    type: Binary
+    binary: {}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: order-service:latest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: quarkus-otel-demo
+  labels:
+    app: order-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "true"
+    spec:
+      containers:
+      - name: order-service
+        image: image-registry.openshift-image-registry.svc:5000/quarkus-otel-demo/order-service:latest
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /q/health/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /q/health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+              - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: quarkus-otel-demo
+  labels:
+    app: order-service
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: order-service
   type: ClusterIP
 ---
 # ── Store Frontend ───────────────────────────────────────────────────────────
@@ -160,6 +268,18 @@ spec:
         image: image-registry.openshift-image-registry.svc:5000/quarkus-otel-demo/store-frontend:latest
         ports:
         - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /q/health/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /q/health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
         resources:
           requests:
             memory: "256Mi"

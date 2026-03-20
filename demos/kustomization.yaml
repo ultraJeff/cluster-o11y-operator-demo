@@ -15,3 +15,8 @@ resources:
 
 # Synthetic trace generator
 - sample-tracing/
+
+# NOTE: The following demos include source code and require OpenShift binary
+# builds, so they are deployed separately (see each demo's README/deploy.sh):
+#   - dotnet-tracing/       (oc apply -f + oc start-build)
+#   - quarkus-autoinstrumentation/  (./deploy.sh all)

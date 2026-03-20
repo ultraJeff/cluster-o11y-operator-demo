@@ -3,7 +3,7 @@
 # separate from the platform monitoring and User Workload Monitoring
 #
 # The MonitoringStack watches for ServiceMonitors with the label "monitoring: demo"
-# in the hotrod-demo and dotnet-tracing-demo namespaces.
+# in demo namespaces.
 apiVersion: monitoring.rhobs/v1alpha1
 kind: MonitoringStack
 metadata:
@@ -24,6 +24,7 @@ spec:
       values:
       - hotrod-demo
       - dotnet-tracing-demo
+      - quarkus-otel-demo
   prometheusConfig:
     replicas: 1
     scrapeInterval: 30s

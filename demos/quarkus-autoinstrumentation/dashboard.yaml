@@ -1,0 +1,404 @@
+# Perses server instance — the perses-operator deploys this as a
+# lightweight dashboard backend; the COO console plugin reads from it.
+apiVersion: perses.dev/v1alpha2
+kind: Perses
+metadata:
+  name: perses
+  namespace: quarkus-otel-demo
+  labels:
+    app.kubernetes.io/instance: perses
+    app.kubernetes.io/name: perses
+spec:
+  metadata:
+    labels:
+      app.kubernetes.io/instance: perses
+      app.kubernetes.io/name: perses
+  image: registry.redhat.io/cluster-observability-operator/perses-rhel9@sha256:19b297eac0249f7375b5df7b936a7e17055e5dd1c17cccd0229b096482687c36
+  config:
+    database:
+      file:
+        folder: "/perses"
+        extension: "yaml"
+  containerPort: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+---
+# Perses Dashboard for the Quarkus Auto-Instrumentation Demo
+#
+# This PersesDashboard CR is rendered by COO's Dashboards UIPlugin in
+# Observe → Dashboards. It demonstrates "Dashboard-as-Code" — the
+# definition lives in Git and is applied with `oc apply -f`.
+#
+# In a real-world workflow this YAML would be stored in a team's own
+# repository (separate from the app code) and deployed by a GitOps
+# pipeline so that developers can view service health without needing
+# cluster-admin access.
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: quarkus-otel-demo
+  namespace: quarkus-otel-demo
+spec:
+  instanceSelector:
+    matchLabels:
+      app.kubernetes.io/instance: perses
+  config:
+    display:
+      name: "Quarkus Auto-Instrumentation Demo"
+      description: "Service health overview for the zero-code OpenTelemetry demo (store-frontend → order-service → catalog-service)"
+    duration: 30m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+            hidden: false
+          allowAllValue: true
+          allowMultiple: false
+          defaultValue: "$__all"
+          plugin:
+            kind: StaticListVariable
+            spec:
+              values:
+                - store-frontend
+                - order-service
+                - catalog-service
+    panels:
+      cpuStat:
+        kind: Panel
+        spec:
+          display:
+            name: "CPU Usage (cores)"
+            description: "Current CPU consumption per container"
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              format:
+                unit: decimal
+                decimalPlaces: 3
+              sparkline: {}
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                    seriesNameFormat: "{{container}}"
+                    query: |
+                      sum by (container) (
+                        rate(container_cpu_usage_seconds_total{
+                          namespace="quarkus-otel-demo",
+                          container=~"$service",
+                          container!="",
+                          container!="POD"
+                        }[5m])
+                      )
+      memoryStat:
+        kind: Panel
+        spec:
+          display:
+            name: "Memory (working set)"
+            description: "Current memory working set per container"
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              format:
+                unit: bytes
+                shortValues: true
+              sparkline: {}
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                    seriesNameFormat: "{{container}}"
+                    query: |
+                      sum by (container) (
+                        container_memory_working_set_bytes{
+                          namespace="quarkus-otel-demo",
+                          container=~"$service",
+                          container!="",
+                          container!="POD"
+                        }
+                      )
+      restartStat:
+        kind: Panel
+        spec:
+          display:
+            name: "Pod Restarts"
+            description: "Total container restarts"
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              format:
+                unit: decimal
+                decimalPlaces: 0
+              thresholds:
+                steps:
+                  - color: green
+                    value: 0
+                  - color: orange
+                    value: 1
+                  - color: red
+                    value: 5
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                    seriesNameFormat: "{{container}}"
+                    query: |
+                      sum by (container) (
+                        kube_pod_container_status_restarts_total{
+                          namespace="quarkus-otel-demo",
+                          container=~"$service"
+                        }
+                      )
+      readyStat:
+        kind: Panel
+        spec:
+          display:
+            name: "Ready Pods"
+            description: "Number of pods in Ready state"
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              format:
+                unit: decimal
+                decimalPlaces: 0
+              thresholds:
+                steps:
+                  - color: red
+                    value: 0
+                  - color: green
+                    value: 1
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                    seriesNameFormat: "{{deployment}}"
+                    query: |
+                      sum by (deployment) (
+                        kube_deployment_status_replicas_ready{
+                          namespace="quarkus-otel-demo",
+                          deployment=~"$service"
+                        }
+                      )
+      cpuTimeSeries:
+        kind: Panel
+        spec:
+          display:
+            name: "CPU Usage Over Time"
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              yAxis:
+                label: cores
+                format:
+                  unit: decimal
+                  decimalPlaces: 3
+              legend:
+                position: bottom
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                    seriesNameFormat: "{{container}}"
+                    query: |
+                      sum by (container) (
+                        rate(container_cpu_usage_seconds_total{
+                          namespace="quarkus-otel-demo",
+                          container=~"$service",
+                          container!="",
+                          container!="POD"
+                        }[5m])
+                      )
+      memoryTimeSeries:
+        kind: Panel
+        spec:
+          display:
+            name: "Memory Working Set Over Time"
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              yAxis:
+                label: bytes
+                format:
+                  unit: bytes
+                  shortValues: true
+              legend:
+                position: bottom
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                    seriesNameFormat: "{{container}}"
+                    query: |
+                      sum by (container) (
+                        container_memory_working_set_bytes{
+                          namespace="quarkus-otel-demo",
+                          container=~"$service",
+                          container!="",
+                          container!="POD"
+                        }
+                      )
+      networkReceive:
+        kind: Panel
+        spec:
+          display:
+            name: "Network Receive Rate"
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              yAxis:
+                label: bytes/s
+                format:
+                  unit: bytes
+                  shortValues: true
+              legend:
+                position: bottom
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                    seriesNameFormat: "{{pod}}"
+                    query: |
+                      sum by (pod) (
+                        rate(container_network_receive_bytes_total{
+                          namespace="quarkus-otel-demo"
+                        }[5m])
+                      )
+      networkTransmit:
+        kind: Panel
+        spec:
+          display:
+            name: "Network Transmit Rate"
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              yAxis:
+                label: bytes/s
+                format:
+                  unit: bytes
+                  shortValues: true
+              legend:
+                position: bottom
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: PrometheusDatasource
+                    seriesNameFormat: "{{pod}}"
+                    query: |
+                      sum by (pod) (
+                        rate(container_network_transmit_bytes_total{
+                          namespace="quarkus-otel-demo"
+                        }[5m])
+                      )
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: "Service Health"
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 6
+              height: 4
+              content:
+                "$ref": "#/spec/panels/cpuStat"
+            - x: 6
+              "y": 0
+              width: 6
+              height: 4
+              content:
+                "$ref": "#/spec/panels/memoryStat"
+            - x: 12
+              "y": 0
+              width: 6
+              height: 4
+              content:
+                "$ref": "#/spec/panels/restartStat"
+            - x: 18
+              "y": 0
+              width: 6
+              height: 4
+              content:
+                "$ref": "#/spec/panels/readyStat"
+      - kind: Grid
+        spec:
+          display:
+            title: "Resource Usage"
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 12
+              height: 8
+              content:
+                "$ref": "#/spec/panels/cpuTimeSeries"
+            - x: 12
+              "y": 0
+              width: 12
+              height: 8
+              content:
+                "$ref": "#/spec/panels/memoryTimeSeries"
+      - kind: Grid
+        spec:
+          display:
+            title: "Network I/O"
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 12
+              height: 8
+              content:
+                "$ref": "#/spec/panels/networkReceive"
+            - x: 12
+              "y": 0
+              width: 12
+              height: 8
+              content:
+                "$ref": "#/spec/panels/networkTransmit"
