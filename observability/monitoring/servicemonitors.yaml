@@ -1,3 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hotrod-demo
+  labels:
+    name: hotrod-demo
+---
 # ServiceMonitor for HotROD demo app
 # The "monitoring: demo" label connects this to the MonitoringStack's resourceSelector
 # HotROD (Go/Jaeger) exposes Prometheus metrics on its frontend port
