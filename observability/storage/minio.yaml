@@ -123,14 +123,16 @@ spec:
     app: minio
   type: ClusterIP
 ---
-# Job to create the required buckets on startup
+# Job to create the required buckets after each sync
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: minio-create-buckets
   namespace: minio
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
 spec:
-  ttlSecondsAfterFinished: 600
   template:
     spec:
       restartPolicy: OnFailure

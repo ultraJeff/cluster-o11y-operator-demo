@@ -5,7 +5,10 @@ NAMESPACE="quarkus-otel-demo"
 ROUNDS=${1:-5}
 DELAY=${2:-2}
 
-ROUTE=$(oc get route store-frontend -n "${NAMESPACE}" -o jsonpath='{.spec.host}' 2>/dev/null || true)
+OC_ARGS=()
+[[ -n "${OC_CONTEXT:-}" ]] && OC_ARGS+=(--context="${OC_CONTEXT}")
+
+ROUTE=$(oc "${OC_ARGS[@]}" get route store-frontend -n "${NAMESPACE}" -o jsonpath='{.spec.host}' 2>/dev/null || true)
 if [[ -z "${ROUTE}" ]]; then
     echo "Error: could not find store-frontend route in namespace ${NAMESPACE}"
     echo "Make sure the demo is deployed first: ./deploy.sh all"
@@ -23,7 +26,7 @@ request() {
     local method=$1 path=$2 label=$3
     shift 3
     local status
-    status=$(curl -s -o /dev/null -w "%{http_code}" "$@" "${BASE}${path}")
+    status=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$@" "${BASE}${path}")
     printf "  %-6s %-35s -> %s  (%s)\n" "${method}" "${path}" "${status}" "${label}"
 }
 
@@ -67,9 +70,6 @@ for ((i = 1; i <= ROUNDS; i++)); do
         sleep "${DELAY}"
     fi
 
-    # Health check
-    request GET /q/health "health check"
-    sleep "${DELAY}"
 done
 
 echo ""

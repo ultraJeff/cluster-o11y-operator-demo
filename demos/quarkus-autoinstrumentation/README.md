@@ -168,24 +168,42 @@ curl -s https://$ROUTE/q/health | jq
 - **JDBC spans** in both catalog-service and order-service showing `SELECT`, `UPDATE`, and `INSERT` queries
 - **Trace context propagation** across all 3 services linked under a single trace ID
 
-## Custom Dashboard (Observe → Dashboards)
+## Custom Dashboard (Grafana)
 
-A `PersesDashboard` CR is included in `dashboard.yaml` and deployed automatically
-by `deploy.sh`. This demonstrates the **Dashboard-as-Code** pattern — the dashboard
-definition lives in Git alongside the application and is applied with `oc apply -f`.
+A Grafana instance with a pre-loaded dashboard is included in `dashboard.yaml` and
+deployed automatically by `deploy.sh`. This demonstrates the **Dashboard-as-Code**
+pattern — the dashboard JSON lives in Git as a ConfigMap and is provisioned into
+Grafana at startup.
 
-In the OpenShift console, go to **Observe → Dashboards** and select
-**Quarkus Auto-Instrumentation Demo**. The dashboard shows:
+Anonymous read-only access is enabled so developers can view the dashboard without
+needing Grafana credentials. Access it at:
+
+```bash
+oc get route grafana -n quarkus-otel-demo -o jsonpath='https://{.spec.host}{"\n"}'
+```
+
+The **Quarkus Auto-Instrumentation Demo** dashboard shows:
 
 | Row | Panels |
 |-----|--------|
 | Service Health | CPU stat, Memory stat, Pod Restarts, Ready Pods |
 | Resource Usage | CPU over time, Memory over time |
 | Network I/O | Receive rate, Transmit rate |
+| Traces | Recent Traces table, Trace View (search + waterfall) |
 
-A **Service** dropdown variable lets you filter to a single service or view all three.
+Grafana is configured with two datasources:
 
-In a real-world workflow, dashboard YAML like this would live in a separate team
+- **Prometheus** — queries Thanos Querier (`cluster-monitoring-view` role) for
+  CPU, memory, network, and pod metrics
+- **Tempo** — queries the TempoStack gateway (`tempo.grafana.com` RBAC) for
+  distributed traces, including trace search, waterfall view, and node graph
+
+The trace panels let you browse recent traces, click into individual trace IDs
+to see the full span waterfall, and correlate traces with resource metrics — all
+in one dashboard. You can also use Grafana's **Explore** view for ad-hoc trace
+queries with TraceQL.
+
+In a real-world workflow, dashboard JSON like this would live in a separate team
 repository and be deployed by a GitOps pipeline (ArgoCD, Flux), giving developers a
 self-service view of their services without needing cluster-admin access.
 
@@ -225,7 +243,7 @@ oc logs deployment/tracing-collector -n observability | head -50
 | `deploy.sh` | Deploy, build, restart, and check status — `./deploy.sh all` for full deploy |
 | `generate-traces.sh` | Generate realistic traffic to populate traces — `./generate-traces.sh 10` |
 | `openshift-deploy.yaml` | Namespace, `Instrumentation` CR, BuildConfigs, Deployments (with auto-instrumentation annotation), Services, Route |
-| `dashboard.yaml` | `PersesDashboard` CR — custom dashboard visible in Observe → Dashboards |
+| `dashboard.yaml` | Grafana Deployment with Prometheus + Tempo datasources, dashboard (ConfigMap), SA, RBAC, Route |
 | `src/catalog-service/` | Quarkus REST API + H2/Panache product catalog with stock reservation — **no OTel code** |
 | `src/order-service/` | Quarkus REST API + H2/Panache order persistence, calls catalog-service — **no OTel code** |
 | `src/store-frontend/` | Quarkus REST gateway with validation, calls catalog-service and order-service — **no OTel code** |

@@ -24,8 +24,16 @@ apply() {
     echo "==> Applying OpenShift manifests..."
     oc apply -f "${SCRIPT_DIR}/openshift-deploy.yaml"
     if [[ -f "${SCRIPT_DIR}/dashboard.yaml" ]]; then
-        echo "==> Applying Perses dashboard..."
+        echo "==> Applying Grafana dashboard..."
         oc apply -f "${SCRIPT_DIR}/dashboard.yaml"
+        if ! oc get secret grafana-sa-token -n "${NAMESPACE}" &>/dev/null; then
+            echo "==> Creating Grafana SA token for Thanos Querier access..."
+            local token
+            token=$(oc create token grafana -n "${NAMESPACE}" --duration=87600h)
+            oc create secret generic grafana-sa-token \
+                -n "${NAMESPACE}" \
+                --from-literal=token="${token}"
+        fi
     fi
     echo ""
 }
@@ -56,7 +64,11 @@ restart() {
     echo ""
     ROUTE=$(oc get route store-frontend -n "${NAMESPACE}" -o jsonpath='{.spec.host}' 2>/dev/null || true)
     if [[ -n "${ROUTE}" ]]; then
-        echo "==> Route: https://${ROUTE}"
+        echo "==> App:       https://${ROUTE}"
+    fi
+    GRAFANA=$(oc get route grafana -n "${NAMESPACE}" -o jsonpath='{.spec.host}' 2>/dev/null || true)
+    if [[ -n "${GRAFANA}" ]]; then
+        echo "==> Dashboard: https://${GRAFANA}"
     fi
 }
 
@@ -67,8 +79,9 @@ status() {
     echo "==> Deployments:"
     oc get deployments -n "${NAMESPACE}"
     echo ""
-    echo "==> Route:"
-    oc get route store-frontend -n "${NAMESPACE}" -o jsonpath='https://{.spec.host}{"\n"}' 2>/dev/null || echo "(not found)"
+    echo "==> Routes:"
+    oc get route store-frontend -n "${NAMESPACE}" -o jsonpath='  App:       https://{.spec.host}{"\n"}' 2>/dev/null || echo "  App: (not found)"
+    oc get route grafana -n "${NAMESPACE}" -o jsonpath='  Dashboard: https://{.spec.host}{"\n"}' 2>/dev/null || echo "  Dashboard: (not found)"
     echo ""
     echo "==> Instrumentation:"
     oc get instrumentation -n "${NAMESPACE}" 2>/dev/null || echo "(not found)"

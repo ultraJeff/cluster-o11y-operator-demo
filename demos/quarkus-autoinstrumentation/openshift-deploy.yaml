@@ -16,7 +16,7 @@ metadata:
   namespace: quarkus-otel-demo
 spec:
   exporter:
-    endpoint: http://tracing-collector.observability.svc.cluster.local:4317
+    endpoint: http://trace-filter-collector.quarkus-otel-demo.svc.cluster.local:4317
   env:
     - name: OTEL_SEMCONV_STABILITY_OPT_IN
       value: http
@@ -325,3 +325,50 @@ spec:
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
+---
+# ── Trace Filter Collector ──────────────────────────────────────────────────
+# Local collector that drops health-check traces (/q/...) before forwarding
+# to the central tracing-collector managed by ObservabilityInstaller.
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: trace-filter
+  namespace: quarkus-otel-demo
+spec:
+  mode: deployment
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      tail_sampling:
+        decision_wait: 5s
+        num_traces: 500
+        policies:
+          - name: drop-health-checks
+            type: ottl_condition
+            ottl_condition:
+              error_mode: ignore
+              span:
+                - 'attributes["url.path"] == nil or not IsMatch(attributes["url.path"], "/q/.*")'
+    exporters:
+      otlp:
+        endpoint: tracing-collector.observability.svc.cluster.local:4317
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [tail_sampling]
+          exporters: [otlp]

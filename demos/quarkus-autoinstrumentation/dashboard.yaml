@@ -1,404 +1,417 @@
-# Perses server instance — the perses-operator deploys this as a
-# lightweight dashboard backend; the COO console plugin reads from it.
-apiVersion: perses.dev/v1alpha2
-kind: Perses
+# Grafana instance with a pre-loaded dashboard for the Quarkus demo.
+# Queries Thanos Querier for Prometheus metrics and the TempoStack
+# gateway for distributed traces. Anonymous read-only access is
+# enabled so developers can view dashboards without credentials.
+apiVersion: v1
+kind: ServiceAccount
 metadata:
-  name: perses
+  name: grafana
+  namespace: quarkus-otel-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: grafana-tempo-traces-reader
+rules:
+  - apiGroups: ["tempo.grafana.com"]
+    resources: ["application"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: grafana-quarkus-otel-demo-monitoring-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-monitoring-view
+subjects:
+  - kind: ServiceAccount
+    name: grafana
+    namespace: quarkus-otel-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: grafana-quarkus-otel-demo-tempo-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: grafana-tempo-traces-reader
+subjects:
+  - kind: ServiceAccount
+    name: grafana
+    namespace: quarkus-otel-demo
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: quarkus-otel-demo
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: https://thanos-querier.openshift-monitoring.svc.cluster.local:9091
+        isDefault: true
+        jsonData:
+          httpHeaderName1: Authorization
+          timeInterval: 30s
+          tlsSkipVerify: true
+        secureJsonData:
+          httpHeaderValue1: "Bearer ${SA_TOKEN}"
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: https://tempo-tracing-gateway.observability.svc.cluster.local:8080/api/traces/v1/application/tempo
+        jsonData:
+          httpHeaderName1: Authorization
+          tlsSkipVerify: true
+          tracesToMetrics:
+            datasourceUid: prometheus
+          nodeGraph:
+            enabled: true
+        secureJsonData:
+          httpHeaderValue1: "Bearer ${SA_TOKEN}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: quarkus-otel-demo
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        folder: ""
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-quarkus
+  namespace: quarkus-otel-demo
+data:
+  quarkus-otel-demo.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "graphTooltip": 1,
+      "panels": [
+        {
+          "title": "CPU Usage (cores)",
+          "type": "stat",
+          "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{
+            "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"quarkus-otel-demo\",container=~\"store-frontend|order-service|catalog-service\",container!=\"POD\"}[5m]))",
+            "legendFormat": "{{container}}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 3,
+              "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}] }
+            },
+            "overrides": []
+          },
+          "options": { "graphMode": "area", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "title": "Memory (working set)",
+          "type": "stat",
+          "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{
+            "expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"quarkus-otel-demo\",container=~\"store-frontend|order-service|catalog-service\",container!=\"POD\"})",
+            "legendFormat": "{{container}}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}] }
+            },
+            "overrides": []
+          },
+          "options": { "graphMode": "area", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "title": "Pod Restarts",
+          "type": "stat",
+          "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{
+            "expr": "sum by (container) (kube_pod_container_status_restarts_total{namespace=\"quarkus-otel-demo\",container=~\"store-frontend|order-service|catalog-service\"})",
+            "legendFormat": "{{container}}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "orange", "value": 1},
+                  {"color": "red", "value": 5}
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": { "graphMode": "none", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "title": "Ready Pods",
+          "type": "stat",
+          "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{
+            "expr": "sum by (deployment) (kube_deployment_status_replicas_ready{namespace=\"quarkus-otel-demo\",deployment=~\"store-frontend|order-service|catalog-service\"})",
+            "legendFormat": "{{deployment}}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "green", "value": 1}
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": { "graphMode": "none", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "title": "CPU Usage Over Time",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{
+            "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"quarkus-otel-demo\",container=~\"store-frontend|order-service|catalog-service\",container!=\"POD\"}[5m]))",
+            "legendFormat": "{{container}}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": { "lineWidth": 2, "fillOpacity": 15, "showPoints": "never" }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Memory Working Set Over Time",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{
+            "expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"quarkus-otel-demo\",container=~\"store-frontend|order-service|catalog-service\",container!=\"POD\"})",
+            "legendFormat": "{{container}}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": { "lineWidth": 2, "fillOpacity": 15, "showPoints": "never" }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Network Receive Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{
+            "expr": "sum by (pod) (rate(container_network_receive_bytes_total{namespace=\"quarkus-otel-demo\"}[5m]))",
+            "legendFormat": "{{pod}}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": { "lineWidth": 2, "fillOpacity": 15, "showPoints": "never" }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Network Transmit Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{
+            "expr": "sum by (pod) (rate(container_network_transmit_bytes_total{namespace=\"quarkus-otel-demo\"}[5m]))",
+            "legendFormat": "{{pod}}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": { "lineWidth": 2, "fillOpacity": 15, "showPoints": "never" }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Recent Traces",
+          "description": "Latest traces from the Quarkus demo services. Click a Trace ID to open it in Explore.",
+          "type": "table",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 21 },
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "targets": [{
+            "queryType": "traceqlSearch",
+            "limit": 20,
+            "tableType": "traces",
+            "filters": [
+              { "id": "service-name", "tag": "service.name", "operator": "=~", "value": ["store-frontend", "order-service", "catalog-service"], "scope": "resource" }
+            ]
+          }],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "traceID" },
+                "properties": [{
+                  "id": "links",
+                  "value": [{
+                    "title": "View trace",
+                    "url": "/explore?left={\"datasource\":\"tempo\",\"queries\":[{\"query\":\"${__value.raw}\",\"queryType\":\"traceql\"}]}",
+                    "targetBlank": true
+                  }]
+                }]
+              }
+            ]
+          },
+          "options": { "showHeader": true, "cellHeight": "sm" }
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["quarkus", "opentelemetry", "demo"],
+      "templating": { "list": [] },
+      "time": { "from": "now-30m", "to": "now" },
+      "title": "Quarkus Auto-Instrumentation Demo",
+      "uid": "quarkus-otel-demo"
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
   namespace: quarkus-otel-demo
   labels:
-    app.kubernetes.io/instance: perses
-    app.kubernetes.io/name: perses
+    app: grafana
 spec:
-  metadata:
-    labels:
-      app.kubernetes.io/instance: perses
-      app.kubernetes.io/name: perses
-  image: registry.redhat.io/cluster-observability-operator/perses-rhel9@sha256:19b297eac0249f7375b5df7b936a7e17055e5dd1c17cccd0229b096482687c36
-  config:
-    database:
-      file:
-        folder: "/perses"
-        extension: "yaml"
-  containerPort: 8080
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 200m
-      memory: 128Mi
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      serviceAccountName: grafana
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: grafana
+          image: docker.io/grafana/grafana:11.6.0
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "demo"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Editor"
+            - name: GF_PATHS_PROVISIONING
+              value: /etc/grafana/provisioning
+            - name: SA_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-sa-token
+                  key: token
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+            - name: data
+              mountPath: /var/lib/grafana
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboards
+          configMap:
+            name: grafana-dashboard-quarkus
+        - name: data
+          emptyDir: {}
 ---
-# Perses Dashboard for the Quarkus Auto-Instrumentation Demo
-#
-# This PersesDashboard CR is rendered by COO's Dashboards UIPlugin in
-# Observe → Dashboards. It demonstrates "Dashboard-as-Code" — the
-# definition lives in Git and is applied with `oc apply -f`.
-#
-# In a real-world workflow this YAML would be stored in a team's own
-# repository (separate from the app code) and deployed by a GitOps
-# pipeline so that developers can view service health without needing
-# cluster-admin access.
-apiVersion: perses.dev/v1alpha2
-kind: PersesDashboard
+apiVersion: v1
+kind: Service
 metadata:
-  name: quarkus-otel-demo
+  name: grafana
+  namespace: quarkus-otel-demo
+  labels:
+    app: grafana
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: http
+      protocol: TCP
+      name: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: grafana
   namespace: quarkus-otel-demo
 spec:
-  instanceSelector:
-    matchLabels:
-      app.kubernetes.io/instance: perses
-  config:
-    display:
-      name: "Quarkus Auto-Instrumentation Demo"
-      description: "Service health overview for the zero-code OpenTelemetry demo (store-frontend → order-service → catalog-service)"
-    duration: 30m
-    variables:
-      - kind: ListVariable
-        spec:
-          name: service
-          display:
-            name: Service
-            hidden: false
-          allowAllValue: true
-          allowMultiple: false
-          defaultValue: "$__all"
-          plugin:
-            kind: StaticListVariable
-            spec:
-              values:
-                - store-frontend
-                - order-service
-                - catalog-service
-    panels:
-      cpuStat:
-        kind: Panel
-        spec:
-          display:
-            name: "CPU Usage (cores)"
-            description: "Current CPU consumption per container"
-          plugin:
-            kind: StatChart
-            spec:
-              calculation: last-number
-              format:
-                unit: decimal
-                decimalPlaces: 3
-              sparkline: {}
-          queries:
-            - kind: TimeSeriesQuery
-              spec:
-                plugin:
-                  kind: PrometheusTimeSeriesQuery
-                  spec:
-                    datasource:
-                      kind: PrometheusDatasource
-                    seriesNameFormat: "{{container}}"
-                    query: |
-                      sum by (container) (
-                        rate(container_cpu_usage_seconds_total{
-                          namespace="quarkus-otel-demo",
-                          container=~"$service",
-                          container!="",
-                          container!="POD"
-                        }[5m])
-                      )
-      memoryStat:
-        kind: Panel
-        spec:
-          display:
-            name: "Memory (working set)"
-            description: "Current memory working set per container"
-          plugin:
-            kind: StatChart
-            spec:
-              calculation: last-number
-              format:
-                unit: bytes
-                shortValues: true
-              sparkline: {}
-          queries:
-            - kind: TimeSeriesQuery
-              spec:
-                plugin:
-                  kind: PrometheusTimeSeriesQuery
-                  spec:
-                    datasource:
-                      kind: PrometheusDatasource
-                    seriesNameFormat: "{{container}}"
-                    query: |
-                      sum by (container) (
-                        container_memory_working_set_bytes{
-                          namespace="quarkus-otel-demo",
-                          container=~"$service",
-                          container!="",
-                          container!="POD"
-                        }
-                      )
-      restartStat:
-        kind: Panel
-        spec:
-          display:
-            name: "Pod Restarts"
-            description: "Total container restarts"
-          plugin:
-            kind: StatChart
-            spec:
-              calculation: last-number
-              format:
-                unit: decimal
-                decimalPlaces: 0
-              thresholds:
-                steps:
-                  - color: green
-                    value: 0
-                  - color: orange
-                    value: 1
-                  - color: red
-                    value: 5
-          queries:
-            - kind: TimeSeriesQuery
-              spec:
-                plugin:
-                  kind: PrometheusTimeSeriesQuery
-                  spec:
-                    datasource:
-                      kind: PrometheusDatasource
-                    seriesNameFormat: "{{container}}"
-                    query: |
-                      sum by (container) (
-                        kube_pod_container_status_restarts_total{
-                          namespace="quarkus-otel-demo",
-                          container=~"$service"
-                        }
-                      )
-      readyStat:
-        kind: Panel
-        spec:
-          display:
-            name: "Ready Pods"
-            description: "Number of pods in Ready state"
-          plugin:
-            kind: StatChart
-            spec:
-              calculation: last-number
-              format:
-                unit: decimal
-                decimalPlaces: 0
-              thresholds:
-                steps:
-                  - color: red
-                    value: 0
-                  - color: green
-                    value: 1
-          queries:
-            - kind: TimeSeriesQuery
-              spec:
-                plugin:
-                  kind: PrometheusTimeSeriesQuery
-                  spec:
-                    datasource:
-                      kind: PrometheusDatasource
-                    seriesNameFormat: "{{deployment}}"
-                    query: |
-                      sum by (deployment) (
-                        kube_deployment_status_replicas_ready{
-                          namespace="quarkus-otel-demo",
-                          deployment=~"$service"
-                        }
-                      )
-      cpuTimeSeries:
-        kind: Panel
-        spec:
-          display:
-            name: "CPU Usage Over Time"
-          plugin:
-            kind: TimeSeriesChart
-            spec:
-              yAxis:
-                label: cores
-                format:
-                  unit: decimal
-                  decimalPlaces: 3
-              legend:
-                position: bottom
-          queries:
-            - kind: TimeSeriesQuery
-              spec:
-                plugin:
-                  kind: PrometheusTimeSeriesQuery
-                  spec:
-                    datasource:
-                      kind: PrometheusDatasource
-                    seriesNameFormat: "{{container}}"
-                    query: |
-                      sum by (container) (
-                        rate(container_cpu_usage_seconds_total{
-                          namespace="quarkus-otel-demo",
-                          container=~"$service",
-                          container!="",
-                          container!="POD"
-                        }[5m])
-                      )
-      memoryTimeSeries:
-        kind: Panel
-        spec:
-          display:
-            name: "Memory Working Set Over Time"
-          plugin:
-            kind: TimeSeriesChart
-            spec:
-              yAxis:
-                label: bytes
-                format:
-                  unit: bytes
-                  shortValues: true
-              legend:
-                position: bottom
-          queries:
-            - kind: TimeSeriesQuery
-              spec:
-                plugin:
-                  kind: PrometheusTimeSeriesQuery
-                  spec:
-                    datasource:
-                      kind: PrometheusDatasource
-                    seriesNameFormat: "{{container}}"
-                    query: |
-                      sum by (container) (
-                        container_memory_working_set_bytes{
-                          namespace="quarkus-otel-demo",
-                          container=~"$service",
-                          container!="",
-                          container!="POD"
-                        }
-                      )
-      networkReceive:
-        kind: Panel
-        spec:
-          display:
-            name: "Network Receive Rate"
-          plugin:
-            kind: TimeSeriesChart
-            spec:
-              yAxis:
-                label: bytes/s
-                format:
-                  unit: bytes
-                  shortValues: true
-              legend:
-                position: bottom
-          queries:
-            - kind: TimeSeriesQuery
-              spec:
-                plugin:
-                  kind: PrometheusTimeSeriesQuery
-                  spec:
-                    datasource:
-                      kind: PrometheusDatasource
-                    seriesNameFormat: "{{pod}}"
-                    query: |
-                      sum by (pod) (
-                        rate(container_network_receive_bytes_total{
-                          namespace="quarkus-otel-demo"
-                        }[5m])
-                      )
-      networkTransmit:
-        kind: Panel
-        spec:
-          display:
-            name: "Network Transmit Rate"
-          plugin:
-            kind: TimeSeriesChart
-            spec:
-              yAxis:
-                label: bytes/s
-                format:
-                  unit: bytes
-                  shortValues: true
-              legend:
-                position: bottom
-          queries:
-            - kind: TimeSeriesQuery
-              spec:
-                plugin:
-                  kind: PrometheusTimeSeriesQuery
-                  spec:
-                    datasource:
-                      kind: PrometheusDatasource
-                    seriesNameFormat: "{{pod}}"
-                    query: |
-                      sum by (pod) (
-                        rate(container_network_transmit_bytes_total{
-                          namespace="quarkus-otel-demo"
-                        }[5m])
-                      )
-    layouts:
-      - kind: Grid
-        spec:
-          display:
-            title: "Service Health"
-            collapse:
-              open: true
-          items:
-            - x: 0
-              "y": 0
-              width: 6
-              height: 4
-              content:
-                "$ref": "#/spec/panels/cpuStat"
-            - x: 6
-              "y": 0
-              width: 6
-              height: 4
-              content:
-                "$ref": "#/spec/panels/memoryStat"
-            - x: 12
-              "y": 0
-              width: 6
-              height: 4
-              content:
-                "$ref": "#/spec/panels/restartStat"
-            - x: 18
-              "y": 0
-              width: 6
-              height: 4
-              content:
-                "$ref": "#/spec/panels/readyStat"
-      - kind: Grid
-        spec:
-          display:
-            title: "Resource Usage"
-            collapse:
-              open: true
-          items:
-            - x: 0
-              "y": 0
-              width: 12
-              height: 8
-              content:
-                "$ref": "#/spec/panels/cpuTimeSeries"
-            - x: 12
-              "y": 0
-              width: 12
-              height: 8
-              content:
-                "$ref": "#/spec/panels/memoryTimeSeries"
-      - kind: Grid
-        spec:
-          display:
-            title: "Network I/O"
-            collapse:
-              open: true
-          items:
-            - x: 0
-              "y": 0
-              width: 12
-              height: 8
-              content:
-                "$ref": "#/spec/panels/networkReceive"
-            - x: 12
-              "y": 0
-              width: 12
-              height: 8
-              content:
-                "$ref": "#/spec/panels/networkTransmit"
+  to:
+    kind: Service
+    name: grafana
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
