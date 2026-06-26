@@ -167,8 +167,14 @@ spec:
           mc mb --ignore-existing myminio/netobserv-loki
           mc mb --ignore-existing myminio/tempo
           mc mb --ignore-existing myminio/thanos
+          # Set bucket quotas to prevent any single consumer from filling the 50Gi PVC
+          mc quota set myminio/logging-loki --size 20Gi
+          mc quota set myminio/loki --size 5Gi
+          mc quota set myminio/tempo --size 10Gi
+          mc quota set myminio/netobserv-loki --size 10Gi
+          mc quota set myminio/thanos --size 5Gi
           mc ls myminio/
-          echo "Buckets created successfully"
+          echo "Buckets created and quotas set successfully"
         securityContext:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
